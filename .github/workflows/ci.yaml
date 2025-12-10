@@ -1,4 +1,3 @@
-# .github/workflows/ci.yml
 name: CI
 
 on:
@@ -12,9 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
+
       - run: npm ci
       - run: npm run lint
 
@@ -22,8 +23,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
+
       - run: npm ci
-      - run: npm test
+
+      # Exécution des tests avec génération des résultats Allure
+      - name: Run tests with Allure
+        run: |
+          npm test -- --reporter mocha-allure2
+
+      # Upload des résultats à chaque commit (nécessaire si PR comment)
+      - name: Upload raw test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results/
+
+  generate-allure-report:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download results
+        uses: actions/download-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results
