@@ -1,3 +1,4 @@
+# .github/workflows/ci.yml
 name: CI
 
 on:
@@ -11,11 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
-
       - run: npm ci
       - run: npm run lint
 
@@ -23,91 +22,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
-
       - run: npm ci
-
-      # Exécution des tests avec génération des résultats Allure
-      - name: Run tests with Allure
-        run: npm test
-
-      # Upload des résultats à chaque commit (nécessaire si PR comment)
-      - name: Upload raw test results
-        uses: actions/upload-artifact@v4
-        with:
-          name: allure-results
-          path: allure-results/
-
-  generate-allure-report:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download results
-        uses: actions/download-artifact@v4
-        with:
-          name: allure-results
-          path: allure-results
-
-      - name: Install Allure
-        run: |
-          sudo apt-add-repository ppa:qameta/allure -y
-          sudo apt-get update
-          sudo apt-get install allure -y
-
+      - run: npm test
       - name: Generate Allure report
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' # seulement sur merge vers master
         run: |
-          allure generate allure-results --clean -o allure-report
-
+          npm install -g allure-commandline --save-dev
+          allure generate ./allure-results --clean -o ./allure-report
       - name: Upload Allure report
-        uses: actions/upload-artifact@v4
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' # seulement sur merge vers master
+        uses: actions/upload-artifact@v3
         with:
           name: allure-report
-          path: allure-report/
-
-  comment-pr:
-    needs: test
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download results
-        uses: actions/download-artifact@v4
-        with:
-          name: allure-results
-          path: allure-results
-
-      - name: Count failed tests
-        id: parse
-        run: |
-          fails=$(grep -R "status=\"failed\"" -c allure-results || true)
-          echo "failed=$fails" >> $GITHUB_OUTPUT
-
-      - name: Comment PR
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: "Test results"
-          message: |
-            **Tests:** ${{ steps.parse.outputs.failed }} failure(s)
-
-  deploy-pages:
-    needs: generate-allure-report
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: allure-report
-          path: ./public
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./public
-
-      - uses: actions/deploy-pages@v4
+          path: allure-report
