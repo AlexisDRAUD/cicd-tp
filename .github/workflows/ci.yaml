@@ -33,7 +33,7 @@ jobs:
       # Exécution des tests avec génération des résultats Allure
       - name: Run tests with Allure
         run: |
-          npm test -- --reporter mocha-allure2
+          npm test
 
       # Upload des résultats à chaque commit (nécessaire si PR comment)
       - name: Upload raw test results
@@ -54,3 +54,47 @@ jobs:
         with:
           name: allure-results
           path: allure-results
+
+  comment-pr:
+    needs: test
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download results
+        uses: actions/download-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results
+
+      - name: Count failed tests
+        id: parse
+        run: |
+          fails=$(grep -R "status=\"failed\"" -c allure-results || true)
+          echo "failed=$fails" >> $GITHUB_OUTPUT
+
+      - name: Comment PR
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: "Test results"
+          message: |
+            **Tests:** ${{ steps.parse.outputs.failed }} failure(s)
+
+  deploy-pages:
+    needs: generate-allure-report
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: allure-report
+          path: ./public
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./public
+
+      - uses: actions/deploy-pages@v4
+
+
